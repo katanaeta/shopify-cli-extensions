@@ -1,3 +1,5 @@
+machine:
+  directory: packages/shopify-cli-extensions/
 dependencies:
   override:
     - yarn install --frozen-lockfile --no-progress
