@@ -4,7 +4,7 @@ extensions:
     user:
       metafields: []
     development:
-      root_dir: "tmp/checkout_ui_extension"
+      root_dir: "tmp/checkout_ui_extension_new"
       build_dir: "build"
       template: "typescript-react"
       renderer:
