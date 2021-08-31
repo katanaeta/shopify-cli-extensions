@@ -51,7 +51,6 @@ function isValidConfigs(
   paths = [],
 ): configs is Shopifile {
   Object.keys(requiredConfigs).forEach((key) => {
-    console.log(`checking ${key}, ${requiredConfigs}, ${paths.join('.')}`);
     const value = configs[key];
     if (value === undefined || value === null) {
       throw `Invalid configuration. Missing \`${paths.concat(key).join('.')}\``;
