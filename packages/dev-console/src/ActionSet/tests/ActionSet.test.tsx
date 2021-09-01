@@ -9,9 +9,9 @@ import {
 import {Icon, Popover} from '@shopify/polaris';
 import QRCode from 'qrcode.react';
 
-import {mountWithAppContext} from 'tests/modern';
+import {mount} from 'tests/mount';
 
-import {ToastProvider} from '../../../hooks/useToast';
+import {ToastProvider} from 'hooks/useToast';
 import {Action} from '../Action';
 import {ActionSet} from '../ActionSet';
 
@@ -67,7 +67,7 @@ describe('ActionSet', () => {
       refresh,
     });
 
-    const container = await mountWithAppContext(
+    const container = await mount(
       <ToastProvider>
         <table>
           <tbody>
@@ -91,7 +91,7 @@ describe('ActionSet', () => {
       remove,
     });
 
-    const container = await mountWithAppContext(
+    const container = await mount(
       <ToastProvider>
         <table>
           <tbody>
@@ -121,7 +121,7 @@ describe('ActionSet', () => {
       hide: jest.fn(),
     });
 
-    const container = await mountWithAppContext(
+    const container = await mount(
       <ToastProvider>
         <table>
           <tbody>
@@ -151,7 +151,7 @@ describe('ActionSet', () => {
       show: jest.fn(),
     });
 
-    const container = await mountWithAppContext(
+    const container = await mount(
       <ToastProvider>
         <table>
           <tbody>
@@ -178,7 +178,7 @@ describe('ActionSet', () => {
       generateMobileQRCode,
     });
 
-    const container = await mountWithAppContext(
+    const container = await mount(
       <ToastProvider>
         <table>
           <tbody>
@@ -207,7 +207,7 @@ describe('ActionSet', () => {
       generateMobileQRCode,
     });
 
-    const container = await mountWithAppContext(
+    const container = await mount(
       <ToastProvider>
         <table>
           <tbody>

@@ -7,12 +7,12 @@ import {
   DeleteMinor,
 } from '@shopify/polaris-icons';
 
-import {mountWithAppContext} from 'tests/modern';
+import {mount} from 'tests/mount';
 
-import UIExtensionsDevTool from '../UIExtensionsDevTool';
+import {UIExtensionsDevTool} from '../UIExtensionsDevTool';
 import {ExtensionRow} from '../ExtensionRow';
 import {Action} from '../ActionSet/Action';
-import styles from '../UIExtensionsDevTool.scss';
+import * as styles from '../UIExtensionsDevTool.css';
 
 const mockApp = {
   id: 'mock',
@@ -67,7 +67,7 @@ describe('UIExtensionsDevTool', () => {
     ];
     mockExtensions.mockReturnValue({...defaultLocalExtensions, extensions});
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
 
     const rows = container.findAll(ExtensionRow);
 
@@ -99,7 +99,7 @@ describe('UIExtensionsDevTool', () => {
       refresh,
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
 
     container.act(() => {
       container
@@ -133,7 +133,7 @@ describe('UIExtensionsDevTool', () => {
       remove,
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
 
     container.act(() => {
       container
@@ -165,7 +165,7 @@ describe('UIExtensionsDevTool', () => {
       extensions,
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
 
     container.act(() => {
       container.find(Checkbox)?.trigger('onChange');
@@ -202,7 +202,7 @@ describe('UIExtensionsDevTool', () => {
       extensions: [toggleExtension, otherExtension],
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
 
     container.act(() => {
       container
@@ -258,7 +258,7 @@ describe('UIExtensionsDevTool', () => {
       add,
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
 
     container.act(() => {
       container
@@ -295,7 +295,7 @@ describe('UIExtensionsDevTool', () => {
       add,
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
 
     container.act(() => {
       container
@@ -331,7 +331,7 @@ describe('UIExtensionsDevTool', () => {
       show,
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
 
     container.act(() => {
       container
@@ -367,7 +367,7 @@ describe('UIExtensionsDevTool', () => {
       hide,
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
     container.act(() => {
       container
         .find(ExtensionRow, {extension: selectedExtension})
@@ -392,7 +392,7 @@ describe('UIExtensionsDevTool', () => {
       },
     });
 
-    const container = await mountWithAppContext(<UIExtensionsDevTool />);
+    const container = await mount(<UIExtensionsDevTool />);
     container.act(() => {
       container.find('button', {className: styles.Cancel})?.trigger('onClick');
     });
