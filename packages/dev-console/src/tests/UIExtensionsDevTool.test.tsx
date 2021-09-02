@@ -26,8 +26,8 @@ const mockApp = {
 
 const mockExtensions = jest.fn();
 
-jest.mock('components/Extensions', () => ({
-  ...jest.requireActual('components/Extensions'),
+jest.mock('hooks/useLocalExtensions', () => ({
+  ...jest.requireActual('hooks/useLocalExtensions'),
   useLocalExtensions() {
     return mockExtensions();
   },

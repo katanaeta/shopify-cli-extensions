@@ -29,19 +29,10 @@ jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
 
 const mockExtensions = jest.fn();
 
-jest.mock('components/Extensions', () => ({
-  ...jest.requireActual('components/Extensions'),
+jest.mock('hooks/useLocalExtensions', () => ({
+  ...jest.requireActual('hooks/useLocalExtensions'),
   useLocalExtensions() {
     return mockExtensions();
-  },
-}));
-
-jest.mock('@web-utilities/shop', () => ({
-  ...jest.requireActual('@web-utilities/shop'),
-  useShop() {
-    return {
-      shopDomain: 'shop1.myshopify.io',
-    };
   },
 }));
 
