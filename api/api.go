@@ -6,26 +6,37 @@
 package api
 
 import (
+	"bytes"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"regexp"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/Shopify/shopify-cli-extensions/core"
+	"github.com/Shopify/shopify-cli-extensions/create/fsutils"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 
+//go:embed templates/*
+var templates embed.FS
+
 func New(config *core.Config) *ExtensionsApi {
-	mux := mux.NewRouter()
+	mux := mux.NewRouter().StrictSlash(true)
+	fs := fsutils.NewFS(&templates, "templates")
 
 	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		http.Redirect(rw, r, "/extensions/", http.StatusTemporaryRedirect)
 	})
 
-	api := configureExtensionsApi(config, mux)
+	api := configureExtensionsApi(config, mux, fs)
 
 	return api
 }
@@ -44,22 +55,25 @@ func (api *ExtensionsApi) Shutdown() {
 	})
 }
 
-func configureExtensionsApi(config *core.Config, router *mux.Router) *ExtensionsApi {
+func configureExtensionsApi(config *core.Config, router *mux.Router, fs *fsutils.FS) *ExtensionsApi {
 	api := &ExtensionsApi{
 		core.NewExtensionService(config),
 		router,
 		sync.Map{},
+		fs,
 	}
 
-	api.HandleFunc("/extensions/", api.extensionsHandler)
+	api.HandleFunc("/extensions", api.extensionsHandler)
 
 	for _, extension := range api.Extensions {
-		prefix := fmt.Sprintf("/extensions/%s/assets/", extension.UUID)
+		assets := fmt.Sprintf("/extensions/%s/assets/", extension.UUID)
 		buildDir := filepath.Join(".", extension.Development.RootDir, extension.Development.BuildDir)
-		api.PathPrefix(prefix).Handler(
-			http.StripPrefix(prefix, http.FileServer(http.Dir(buildDir))),
+		api.PathPrefix(assets).Handler(
+			http.StripPrefix(assets, http.FileServer(http.Dir(buildDir))),
 		)
 	}
+
+	api.HandleFunc("/extensions/{uuid:(?:[a-z]|[0-9]|-)+}", api.extensionRoot)
 
 	return api
 }
@@ -126,6 +140,88 @@ func (api *ExtensionsApi) listExtensions(rw http.ResponseWriter, r *http.Request
 	encoder.Encode(extensionsResponse{api.Extensions, api.Version})
 }
 
+func (api *ExtensionsApi) extensionRoot(rw http.ResponseWriter, r *http.Request) {
+	log.Printf("request content headers: %v", r.Header.Get("accept"))
+	rw.Header().Add("Content-Type", "text/html")
+
+	requestUrl, err := url.Parse(r.RequestURI)
+
+	if err != nil {
+		rw.Write([]byte(fmt.Sprintf("not found: %v", err)))
+		return
+	}
+
+	re := regexp.MustCompile(`^\/?extensions\/(?P<uuid>([a-z]|[0-9]|-)+)\/?`)
+	matches := re.FindStringSubmatch(requestUrl.Path)
+	uuidIndex := re.SubexpIndex("uuid")
+	if uuidIndex < 0 {
+		rw.Write([]byte("not found, extension has an invalid uuid"))
+		return
+	}
+
+	uuid := matches[uuidIndex]
+	extensionPath := matches[0]
+	extension := api.Extensions[0]
+
+	log.Printf("uuid: %v", uuid)
+
+	log.Printf("scheme: %v", requestUrl.Scheme)
+	// if extension.Type == "checkout-post-purchase" {
+
+	// } else {
+	// 	content, err := mergeTemplateWithData(&extensionTemplateData{&extension, api.Port, extensionPath}, filepath.Join("templates", "tunnel-error.html.tpl"))
+	// 	if err != nil {
+	// 		rw.Write([]byte(fmt.Sprintf("not found: %v", err)))
+	// 		return
+	// 	}
+	// 	rw.Write(content.Bytes())
+	// }
+	rw.Write(api.handleTunnelError(&extension, extensionPath))
+}
+
+func (api *ExtensionsApi) handleTunnelError(extension *core.Extension, extensionPath string) []byte {
+	content, err := api.getTunnelErrorContent(extension, extensionPath)
+
+	if err != nil {
+		return []byte(fmt.Sprintf("not found: %v", err))
+	}
+
+	return content.Bytes()
+}
+
+func (api *ExtensionsApi) getTunnelErrorContent(extension *core.Extension, extensionPath string) (*bytes.Buffer, error) {
+	specificTemplatePath := filepath.Join("templates", "post-purchase", "tunnel-error.html.tpl")
+	globalTemplatePath := filepath.Join("templates", "tunnel-error.html.tpl")
+
+	targetFile, openErr := templates.Open(specificTemplatePath)
+
+	if openErr != nil {
+		return mergeTemplateWithData(&extensionTemplateData{extension, api.Port, extensionPath}, globalTemplatePath)
+	}
+	defer targetFile.Close()
+	return mergeTemplateWithData(&extensionTemplateData{extension, api.Port, extensionPath}, specificTemplatePath)
+}
+
+func mergeTemplateWithData(extension *extensionTemplateData, filePath string) (*bytes.Buffer, error) {
+	var templateContent bytes.Buffer
+	content, err := templates.ReadFile(filePath)
+	if err != nil {
+		return &templateContent, err
+	}
+
+	fileTemplate := template.New(filePath)
+	fileTemplate, err = fileTemplate.Parse(string(content))
+	if err != nil {
+		return &templateContent, err
+	}
+
+	if err = fileTemplate.Execute(&templateContent, extension); err != nil {
+		return &templateContent, err
+	}
+
+	return &templateContent, nil
+}
+
 func (api *ExtensionsApi) registerClient(connection *websocket.Conn, notify notificationHandler, close closeHandler) bool {
 	api.connections.Store(connection, client{notify, close})
 	return true
@@ -165,6 +261,7 @@ type ExtensionsApi struct {
 	*core.ExtensionService
 	*mux.Router
 	connections sync.Map
+	fs          *fsutils.FS
 }
 
 type StatusUpdate struct {
@@ -185,3 +282,9 @@ type client struct {
 type notificationHandler func(StatusUpdate)
 
 type closeHandler func(code int, text string) error
+
+type extensionTemplateData struct {
+	*core.Extension
+	Port          int
+	ExtensionPath string
+}

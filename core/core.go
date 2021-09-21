@@ -27,6 +27,7 @@ func NewExtensionService(config *Config) *ExtensionService {
 	service := ExtensionService{
 		Version:    "0.1.0",
 		Extensions: extensions,
+		Port:       config.Port,
 	}
 
 	return &service
@@ -47,6 +48,7 @@ type Config struct {
 type ExtensionService struct {
 	Extensions []Extension
 	Version    string
+	Port       int
 }
 
 type Extension struct {
