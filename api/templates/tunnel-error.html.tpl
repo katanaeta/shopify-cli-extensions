@@ -17,7 +17,7 @@
     
 	<div id="description">
         <p>This page should redirect to a store with your local extension connected when a secure connection is established.</p>
-        <p>Make sure you have a secure URL for your local development server by running <code>shopify extension tunnel start --port={{ .Port }}</code> and then visit the url https://TUNNEL_URL{{ .ExtensionPath }}</code>, where <code>TUNNEL_URL</code> is replaced with your own ngrok URL.</p>
+        <p>Make sure you have a secure URL for your local development server by running <code>shopify extension tunnel start --port={{ .Port }}</code> and then visit the url https://TUNNEL_URL{{ .RelativePath }}</code>, where <code>TUNNEL_URL</code> is replaced with your own ngrok URL.</p>
     </div>
 	<style>
 		html {

@@ -1,4 +1,6 @@
 port: 8000
+store: shop1.myshopify.io
+public_url: https://008a-24-50-161-44.ngrok.io
 extensions:
   - uuid: 00000000-0000-0000-0000-000000000000
     type: checkout_ui_extension
@@ -12,8 +14,10 @@ extensions:
         name: "@shopify/checkout-ui-extensions"
       entries:
         main: "src/index.tsx"
+      resource:
+        url: "cart/1234"
   - uuid: 00000000-0000-0000-0000-000000000001
-    type: checkout_ui_extension
+    type: checkout_post_purchase
     user:
       metafields: []
     development:
@@ -22,5 +26,19 @@ extensions:
       template: "typescript-react"
       renderer:
         name: "@shopify/checkout-ui-extensions"
+      entries:
+        main: "src/index.tsx"
+      resource:
+        url: "cart/4567"
+  - uuid: 00000000-0000-0000-0000-000000000002
+    type: product_subscription
+    user:
+      metafields: []
+    development:
+      root_dir: "tmp/checkout_ui_extension"
+      build_dir: "build"
+      template: "typescript-react"
+      renderer:
+        name: "@shopify/admin-ui-extensions"
       entries:
         main: "src/index.tsx"

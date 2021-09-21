@@ -15,10 +15,14 @@ func NewExtensionService(config *Config) *ExtensionService {
 			keys = append(keys, key)
 		}
 
+		extensions[index].Assets = make(map[string]Asset)
+
 		for entry := range keys {
 			name := keys[entry]
-			assetUrl := fmt.Sprintf("http://%s:%d/extensions/%s/assets/%s.js", "localhost", config.Port, extension.UUID, name)
-			extensions[index].Assets = append(extensions[index].Assets, Asset{Url: assetUrl, Name: name})
+			rootUrl := fmt.Sprintf("http://%s:%d/extensions/%s/", "localhost", config.Port, extension.UUID)
+			assetUrl := fmt.Sprintf("%s/assets/%s.js", rootUrl, name)
+			extensions[index].Development.Root.Url = rootUrl
+			extensions[index].Assets[name] = Asset{Url: assetUrl, Name: name}
 		}
 
 		extensions[index].App = make(App)
@@ -28,6 +32,8 @@ func NewExtensionService(config *Config) *ExtensionService {
 		Version:    "0.1.0",
 		Extensions: extensions,
 		Port:       config.Port,
+		PublicUrl:  config.PublicUrl,
+		Store:      config.Store,
 	}
 
 	return &service
@@ -43,22 +49,26 @@ func LoadConfig(r io.Reader) (config *Config, err error) {
 type Config struct {
 	Extensions []Extension `yaml:"extensions"`
 	Port       int
+	Store      string
+	PublicUrl  string `yaml:"public_url"`
 }
 
 type ExtensionService struct {
 	Extensions []Extension
 	Version    string
 	Port       int
+	Store      string
+	PublicUrl  string
 }
 
 type Extension struct {
-	Type        string      `json:"type" yaml:"type"`
-	UUID        string      `json:"uuid" yaml:"uuid"`
-	Assets      []Asset     `json:"assets" yaml:"-"`
-	Development Development `json:"development" yaml:"development"`
-	User        User        `json:"user" yaml:"user"`
-	App         App         `json:"app" yaml:"-"`
-	Version     string      `json:"version" yaml:"version"`
+	Type        string           `json:"type" yaml:"type"`
+	UUID        string           `json:"uuid" yaml:"uuid"`
+	Assets      map[string]Asset `json:"assets" yaml:"-"`
+	Development Development      `json:"development" yaml:"development"`
+	User        User             `json:"user" yaml:"user"`
+	App         App              `json:"app" yaml:"-"`
+	Version     string           `json:"version" yaml:"version"`
 }
 
 type Asset struct {
@@ -67,10 +77,7 @@ type Asset struct {
 }
 
 type Development struct {
-	Home     Url               `json:"home"`
-	Manifest Url               `json:"manifest"`
-	Status   Url               `json:"status"`
-	Mobile   Url               `json:"mobile"`
+	Root     Url               `json:"url"`
 	Resource Url               `json:"resource"`
 	Renderer Renderer          `json:"renderer"`
 	Hidden   bool              `json:"hidden"`

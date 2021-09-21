@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/Shopify/shopify-cli-extensions/create/fsutils"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed templates/*
@@ -73,7 +75,7 @@ func configureExtensionsApi(config *core.Config, router *mux.Router, fs *fsutils
 		)
 	}
 
-	api.HandleFunc("/extensions/{uuid:(?:[a-z]|[0-9]|-)+}", api.extensionRoot)
+	api.HandleFunc("/extensions/{uuid:(?:[a-z]|[0-9]|-)+}", api.extensionRootHandler)
 
 	return api
 }
@@ -140,7 +142,7 @@ func (api *ExtensionsApi) listExtensions(rw http.ResponseWriter, r *http.Request
 	encoder.Encode(extensionsResponse{api.Extensions, api.Version})
 }
 
-func (api *ExtensionsApi) extensionRoot(rw http.ResponseWriter, r *http.Request) {
+func (api *ExtensionsApi) extensionRootHandler(rw http.ResponseWriter, r *http.Request) {
 	log.Printf("request content headers: %v", r.Header.Get("accept"))
 	rw.Header().Add("Content-Type", "text/html")
 
@@ -160,27 +162,73 @@ func (api *ExtensionsApi) extensionRoot(rw http.ResponseWriter, r *http.Request)
 	}
 
 	uuid := matches[uuidIndex]
-	extensionPath := matches[0]
-	extension := api.Extensions[0]
 
-	log.Printf("uuid: %v", uuid)
-
-	log.Printf("scheme: %v", requestUrl.Scheme)
-	// if extension.Type == "checkout-post-purchase" {
-
-	// } else {
-	// 	content, err := mergeTemplateWithData(&extensionTemplateData{&extension, api.Port, extensionPath}, filepath.Join("templates", "tunnel-error.html.tpl"))
-	// 	if err != nil {
-	// 		rw.Write([]byte(fmt.Sprintf("not found: %v", err)))
-	// 		return
-	// 	}
-	// 	rw.Write(content.Bytes())
-	// }
-	rw.Write(api.handleTunnelError(&extension, extensionPath))
+	for _, extension := range api.Extensions {
+		if extension.UUID == uuid {
+			api.handleExtension(rw, r, &extension)
+			return
+		}
+	}
 }
 
-func (api *ExtensionsApi) handleTunnelError(extension *core.Extension, extensionPath string) []byte {
-	content, err := api.getTunnelErrorContent(extension, extensionPath)
+func (api *ExtensionsApi) handleExtension(rw http.ResponseWriter, r *http.Request, extension *core.Extension) {
+	host := fmt.Sprintf("http://%s", r.Host)
+
+	if r.Host != "localhost" && api.PublicUrl != "" {
+		host = api.PublicUrl
+	}
+
+	apiUrl := fmt.Sprintf("%s/extensions", host)
+
+	templateData := extensionTemplateData{
+		extension,
+		apiUrl,
+		api.Port,
+		fmt.Sprintf("/extensions/%s", extension.UUID),
+		api.Store,
+		getSurface(extension.Type),
+	}
+
+	log.Printf("templateData: %v", templateData)
+
+	// TODO: Find a better way to handle this - looks like there's no easy way to get the request protocol
+	if host == "http://localhost" {
+		rw.Write(api.handleTunnelError(&templateData))
+		return
+	}
+
+	content, err := api.getIndexContent(&templateData)
+	if err != nil {
+		rw.Write([]byte(fmt.Sprintf("not found: %v", err)))
+		return
+	}
+	if content != nil {
+		rw.Write(content.Bytes())
+		return
+	}
+
+	api.handleExtensionRedirect(rw, r, &templateData)
+}
+
+func (api *ExtensionsApi) handleExtensionRedirect(rw http.ResponseWriter, r *http.Request, templateData *extensionTemplateData) {
+	content, err := mergeTemplateWithData(templateData, "templates/info.yml.tpl")
+	if err != nil {
+		rw.Write([]byte(fmt.Sprintf("error: %v", err)))
+		return
+	}
+
+	info := extensionInfo{}
+
+	if err = yaml.Unmarshal(content.Bytes(), &info); err != nil {
+		rw.Write([]byte(fmt.Sprintf("cannot read dat for extension: %v", err)))
+		return
+	}
+	rw.Write([]byte(fmt.Sprintf("redirect: %v", info.RedirectUrl)))
+	// http.Redirect(rw, r, info.RedirectUrl, http.StatusPermanentRedirect)
+}
+
+func (api *ExtensionsApi) handleTunnelError(templateData *extensionTemplateData) []byte {
+	content, err := api.getTunnelErrorContent(templateData)
 
 	if err != nil {
 		return []byte(fmt.Sprintf("not found: %v", err))
@@ -189,20 +237,33 @@ func (api *ExtensionsApi) handleTunnelError(extension *core.Extension, extension
 	return content.Bytes()
 }
 
-func (api *ExtensionsApi) getTunnelErrorContent(extension *core.Extension, extensionPath string) (*bytes.Buffer, error) {
-	specificTemplatePath := filepath.Join("templates", "post-purchase", "tunnel-error.html.tpl")
+func (api *ExtensionsApi) getIndexContent(templateData *extensionTemplateData) (*bytes.Buffer, error) {
+	specificTemplatePath := filepath.Join("templates", templateData.Type, "index.html.tpl")
+
+	targetFile, err := templates.Open(specificTemplatePath)
+
+	if err != nil {
+		return nil, nil
+	}
+
+	defer targetFile.Close()
+	return mergeTemplateWithData(templateData, specificTemplatePath)
+}
+
+func (api *ExtensionsApi) getTunnelErrorContent(templateData *extensionTemplateData) (*bytes.Buffer, error) {
+	specificTemplatePath := filepath.Join("templates", templateData.Type, "tunnel-error.html.tpl")
 	globalTemplatePath := filepath.Join("templates", "tunnel-error.html.tpl")
 
 	targetFile, openErr := templates.Open(specificTemplatePath)
 
 	if openErr != nil {
-		return mergeTemplateWithData(&extensionTemplateData{extension, api.Port, extensionPath}, globalTemplatePath)
+		return mergeTemplateWithData(templateData, globalTemplatePath)
 	}
 	defer targetFile.Close()
-	return mergeTemplateWithData(&extensionTemplateData{extension, api.Port, extensionPath}, specificTemplatePath)
+	return mergeTemplateWithData(templateData, specificTemplatePath)
 }
 
-func mergeTemplateWithData(extension *extensionTemplateData, filePath string) (*bytes.Buffer, error) {
+func mergeTemplateWithData(templateData *extensionTemplateData, filePath string) (*bytes.Buffer, error) {
 	var templateContent bytes.Buffer
 	content, err := templates.ReadFile(filePath)
 	if err != nil {
@@ -215,7 +276,7 @@ func mergeTemplateWithData(extension *extensionTemplateData, filePath string) (*
 		return &templateContent, err
 	}
 
-	if err = fileTemplate.Execute(&templateContent, extension); err != nil {
+	if err = fileTemplate.Execute(&templateContent, templateData); err != nil {
 		return &templateContent, err
 	}
 
@@ -257,6 +318,13 @@ func handleClientMessages(connection *websocket.Conn) {
 	}
 }
 
+func getSurface(extensionType string) string {
+	if strings.Contains(extensionType, "checkout") {
+		return "Checkout"
+	}
+	return "Admin"
+}
+
 type ExtensionsApi struct {
 	*core.ExtensionService
 	*mux.Router
@@ -285,6 +353,17 @@ type closeHandler func(code int, text string) error
 
 type extensionTemplateData struct {
 	*core.Extension
-	Port          int
-	ExtensionPath string
+	ApiUrl       string
+	Port         int
+	RelativePath string
+	Store        string
+	Surface      string
+}
+
+type extensionInfo struct {
+	Messages struct {
+		ExtensionUrl string `yaml:"extensions_url"`
+		Login        string
+	}
+	RedirectUrl string `yaml:"redirect_url"`
 }
