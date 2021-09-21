@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -29,13 +30,14 @@ import (
 
 //go:embed templates/*
 var templates embed.FS
+var apiRoot = "/extensions/"
 
 func New(config *core.Config) *ExtensionsApi {
 	mux := mux.NewRouter().StrictSlash(true)
 	fs := fsutils.NewFS(&templates, "templates")
 
 	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
-		http.Redirect(rw, r, "/extensions/", http.StatusTemporaryRedirect)
+		http.Redirect(rw, r, apiRoot, http.StatusTemporaryRedirect)
 	})
 
 	api := configureExtensionsApi(config, mux, fs)
@@ -65,17 +67,17 @@ func configureExtensionsApi(config *core.Config, router *mux.Router, fs *fsutils
 		fs,
 	}
 
-	api.HandleFunc("/extensions", api.extensionsHandler)
+	api.HandleFunc(apiRoot, api.extensionsHandler)
 
 	for _, extension := range api.Extensions {
-		assets := fmt.Sprintf("/extensions/%s/assets/", extension.UUID)
+		assets := path.Join(apiRoot, extension.UUID, "assets")
 		buildDir := filepath.Join(".", extension.Development.RootDir, extension.Development.BuildDir)
 		api.PathPrefix(assets).Handler(
 			http.StripPrefix(assets, http.FileServer(http.Dir(buildDir))),
 		)
 	}
 
-	api.HandleFunc("/extensions/{uuid:(?:[a-z]|[0-9]|-)+}", api.extensionRootHandler)
+	api.HandleFunc(path.Join(apiRoot, "{uuid:(?:[a-z]|[0-9]|-)+}"), api.extensionRootHandler)
 
 	return api
 }
@@ -178,13 +180,11 @@ func (api *ExtensionsApi) handleExtension(rw http.ResponseWriter, r *http.Reques
 		host = api.PublicUrl
 	}
 
-	apiUrl := fmt.Sprintf("%s/extensions", host)
-
 	templateData := extensionTemplateData{
 		extension,
-		apiUrl,
+		path.Join(host, apiRoot),
 		api.Port,
-		fmt.Sprintf("/extensions/%s", extension.UUID),
+		path.Join(host, apiRoot, extension.UUID),
 		api.Store,
 		getSurface(extension.Type),
 	}
