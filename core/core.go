@@ -85,9 +85,9 @@ type Asset struct {
 }
 
 type Development struct {
-	Root     Url               `json:"url"`
+	Root     Url               `json:"root"`
 	Resource Url               `json:"resource"`
-	Renderer Renderer          `json:"renderer"`
+	Renderer Renderer          `json:"-" yaml:"renderer"`
 	Hidden   bool              `json:"hidden"`
 	Focused  bool              `json:"focused"`
 	BuildDir string            `json:"-" yaml:"build_dir"`

@@ -10,7 +10,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -142,9 +141,6 @@ func (api *ExtensionsApi) listExtensions(rw http.ResponseWriter, r *http.Request
 }
 
 func (api *ExtensionsApi) extensionRootHandler(rw http.ResponseWriter, r *http.Request) {
-	log.Printf("request content headers: %v", r.Header.Get("accept"))
-	rw.Header().Add("Content-Type", "text/html")
-
 	requestUrl, err := url.Parse(r.RequestURI)
 
 	if err != nil {
@@ -164,13 +160,21 @@ func (api *ExtensionsApi) extensionRootHandler(rw http.ResponseWriter, r *http.R
 
 	for _, extension := range api.Extensions {
 		if extension.UUID == uuid {
-			api.handleExtension(rw, r, &extension)
+			if strings.HasPrefix(r.Header.Get("accept"), "text/html") {
+				api.handleExtensionHtmlRequest(rw, r, &extension)
+				return
+			}
+
+			rw.Header().Add("Content-Type", "application/json")
+			encoder := json.NewEncoder(rw)
+			encoder.Encode(singleExtensionResponse{extension, api.Version})
 			return
 		}
 	}
+
 }
 
-func (api *ExtensionsApi) handleExtension(rw http.ResponseWriter, r *http.Request, extension *core.Extension) {
+func (api *ExtensionsApi) handleExtensionHtmlRequest(rw http.ResponseWriter, r *http.Request, extension *core.Extension) {
 	templateData := extensionTemplateData{
 		extension,
 		api.ApiUrl,
@@ -180,15 +184,14 @@ func (api *ExtensionsApi) handleExtension(rw http.ResponseWriter, r *http.Reques
 		getSurface(extension.Type),
 	}
 
-	log.Printf("templateData: %v", templateData)
-
 	// TODO: Find a better way to handle this - looks like there's no easy way to get the request protocol
-	if r.Host == "http://localhost" || api.PublicUrl != "" {
+	if r.Host == "http://localhost" || api.PublicUrl == "" {
 		rw.Write(api.handleTunnelError(&templateData))
 		return
 	}
 
 	content, err := api.getIndexContent(&templateData)
+
 	if err != nil {
 		rw.Write([]byte(fmt.Sprintf("not found: %v", err)))
 		return
@@ -198,10 +201,10 @@ func (api *ExtensionsApi) handleExtension(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.handleExtensionRedirect(rw, r, &templateData)
+	api.handleExtensionHtmlRedirect(rw, r, &templateData)
 }
 
-func (api *ExtensionsApi) handleExtensionRedirect(rw http.ResponseWriter, r *http.Request, templateData *extensionTemplateData) {
+func (api *ExtensionsApi) handleExtensionHtmlRedirect(rw http.ResponseWriter, r *http.Request, templateData *extensionTemplateData) {
 	content, err := mergeTemplateWithData(templateData, "templates/info.yml.tpl")
 	if err != nil {
 		rw.Write([]byte(fmt.Sprintf("error: %v", err)))
@@ -211,7 +214,7 @@ func (api *ExtensionsApi) handleExtensionRedirect(rw http.ResponseWriter, r *htt
 	info := extensionInfo{}
 
 	if err = yaml.Unmarshal(content.Bytes(), &info); err != nil {
-		rw.Write([]byte(fmt.Sprintf("cannot read dat for extension: %v", err)))
+		rw.Write([]byte(fmt.Sprintf("cannot read data for extension: %v", err)))
 		return
 	}
 	rw.Write([]byte(fmt.Sprintf("redirect: %v", info.RedirectUrl)))
@@ -331,6 +334,11 @@ type StatusUpdate struct {
 type extensionsResponse struct {
 	Extensions []core.Extension `json:"extensions"`
 	Version    string           `json:"version"`
+}
+
+type singleExtensionResponse struct {
+	Extension core.Extension `json:"extension"`
+	Version   string         `json:"version"`
 }
 
 type client struct {
