@@ -19,6 +19,8 @@ var (
 	config *core.Config
 )
 
+var apiRoot = "/extensions/"
+
 func init() {
 	configFile, err := os.Open("testdata/shopifile.yml")
 	if err != nil {
@@ -37,13 +39,14 @@ func init() {
 }
 
 func TestGetExtensions(t *testing.T) {
-	req, err := http.NewRequest("GET", "/extensions/", nil)
+
+	req, err := http.NewRequest("GET", apiRoot, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
 
-	api := New(config)
+	api := New(config, apiRoot)
 	api.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -68,12 +71,16 @@ func TestGetExtensions(t *testing.T) {
 		t.Error("Expected assets to not be null")
 	}
 
-	if extension.Assets[0].Name != "main" {
-		t.Errorf("expect an asset with the name main, got %s", extension.Assets[0].Name)
+	if extension.Assets["main"].Name != "main" {
+		t.Errorf("expect an asset with the name main, got %s", extension.Assets["main"].Name)
 	}
 
-	if extension.Assets[0].Url != fmt.Sprintf("http://localhost:8000/extensions/%s/assets/main.js", extension.UUID) {
-		t.Errorf("expect a main asset url, got %s", extension.Assets[0].Url)
+	if extension.Assets["main"].Url != fmt.Sprintf("http://localhost:8000/extensions/%s/assets/main.js", extension.UUID) {
+		t.Errorf("expect a main asset url, got %s", extension.Assets["main"].Url)
+	}
+
+	if extension.Development.Root.Url != fmt.Sprintf("http://localhost:8000/extensions/%s", extension.UUID) {
+		t.Errorf("expect an extension root url, got %s", extension.Development.Root.Url)
 	}
 
 	if extension.App == nil {
@@ -92,7 +99,7 @@ func TestServeAssets(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 
-	api := New(config)
+	api := New(config, apiRoot)
 	api.ServeHTTP(rec, req)
 
 	if rec.Body.String() != "console.log(\"Hello World!\");\n" {
@@ -102,7 +109,7 @@ func TestServeAssets(t *testing.T) {
 }
 
 func TestWebsocketNotify(t *testing.T) {
-	api := New(config)
+	api := New(config, apiRoot)
 	server := httptest.NewServer(api)
 
 	firstConnection, err := createWebsocket(server)
@@ -132,7 +139,7 @@ func TestWebsocketNotify(t *testing.T) {
 }
 
 func TestWebsocketConnectionStartAndShutdown(t *testing.T) {
-	api := New(config)
+	api := New(config, apiRoot)
 	server := httptest.NewServer(api)
 	ws, err := createWebsocket(server)
 	if err != nil {
@@ -156,7 +163,7 @@ func TestWebsocketConnectionStartAndShutdown(t *testing.T) {
 }
 
 func TestWebsocketConnectionClientClose(t *testing.T) {
-	api := New(config)
+	api := New(config, apiRoot)
 	server := httptest.NewServer(api)
 	ws, err := createWebsocket(server)
 	if err != nil {

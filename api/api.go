@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/Shopify/shopify-cli-extensions/core"
-	"github.com/Shopify/shopify-cli-extensions/create/fsutils"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"gopkg.in/yaml.v3"
@@ -30,17 +29,15 @@ import (
 
 //go:embed templates/*
 var templates embed.FS
-var apiRoot = "/extensions/"
 
-func New(config *core.Config) *ExtensionsApi {
+func New(config *core.Config, apiRoot string) *ExtensionsApi {
 	mux := mux.NewRouter().StrictSlash(true)
-	fs := fsutils.NewFS(&templates, "templates")
 
 	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		http.Redirect(rw, r, apiRoot, http.StatusTemporaryRedirect)
 	})
 
-	api := configureExtensionsApi(config, mux, fs)
+	api := configureExtensionsApi(config, mux, apiRoot)
 
 	return api
 }
@@ -59,12 +56,12 @@ func (api *ExtensionsApi) Shutdown() {
 	})
 }
 
-func configureExtensionsApi(config *core.Config, router *mux.Router, fs *fsutils.FS) *ExtensionsApi {
+func configureExtensionsApi(config *core.Config, router *mux.Router, apiRoot string) *ExtensionsApi {
 	api := &ExtensionsApi{
-		core.NewExtensionService(config),
+		core.NewExtensionService(config, apiRoot),
 		router,
 		sync.Map{},
-		fs,
+		apiRoot,
 	}
 
 	api.HandleFunc(apiRoot, api.extensionsHandler)
@@ -174,17 +171,11 @@ func (api *ExtensionsApi) extensionRootHandler(rw http.ResponseWriter, r *http.R
 }
 
 func (api *ExtensionsApi) handleExtension(rw http.ResponseWriter, r *http.Request, extension *core.Extension) {
-	host := fmt.Sprintf("http://%s", r.Host)
-
-	if r.Host != "localhost" && api.PublicUrl != "" {
-		host = api.PublicUrl
-	}
-
 	templateData := extensionTemplateData{
 		extension,
-		path.Join(host, apiRoot),
+		api.ApiUrl,
 		api.Port,
-		path.Join(host, apiRoot, extension.UUID),
+		path.Join(api.apiRoot, extension.UUID),
 		api.Store,
 		getSurface(extension.Type),
 	}
@@ -192,7 +183,7 @@ func (api *ExtensionsApi) handleExtension(rw http.ResponseWriter, r *http.Reques
 	log.Printf("templateData: %v", templateData)
 
 	// TODO: Find a better way to handle this - looks like there's no easy way to get the request protocol
-	if host == "http://localhost" {
+	if r.Host == "http://localhost" || api.PublicUrl != "" {
 		rw.Write(api.handleTunnelError(&templateData))
 		return
 	}
@@ -329,7 +320,7 @@ type ExtensionsApi struct {
 	*core.ExtensionService
 	*mux.Router
 	connections sync.Map
-	fs          *fsutils.FS
+	apiRoot     string
 }
 
 type StatusUpdate struct {

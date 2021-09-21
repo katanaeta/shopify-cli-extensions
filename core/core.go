@@ -7,8 +7,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func NewExtensionService(config *Config) *ExtensionService {
+func NewExtensionService(config *Config, apiRoot string) *ExtensionService {
 	extensions := config.Extensions
+	host := fmt.Sprintf("http://%s:%d", "localhost", config.Port)
+	if config.PublicUrl != "" {
+		host = config.PublicUrl
+	}
+
+	apiUrl := fmt.Sprintf("%s%s", host, apiRoot)
+
 	for index, extension := range extensions {
 		keys := make([]string, 0, len(extensions[index].Development.Entries))
 		for key := range extensions[index].Development.Entries {
@@ -19,10 +26,9 @@ func NewExtensionService(config *Config) *ExtensionService {
 
 		for entry := range keys {
 			name := keys[entry]
-			rootUrl := fmt.Sprintf("http://%s:%d/extensions/%s/", "localhost", config.Port, extension.UUID)
-			assetUrl := fmt.Sprintf("%s/assets/%s.js", rootUrl, name)
-			extensions[index].Development.Root.Url = rootUrl
-			extensions[index].Assets[name] = Asset{Url: assetUrl, Name: name}
+			extensionRoot := fmt.Sprintf("%s%s", apiUrl, extension.UUID)
+			extensions[index].Development.Root.Url = extensionRoot
+			extensions[index].Assets[name] = Asset{Url: fmt.Sprintf("%s/assets/%s.js", extensionRoot, name), Name: name}
 		}
 
 		extensions[index].App = make(App)
@@ -34,6 +40,7 @@ func NewExtensionService(config *Config) *ExtensionService {
 		Port:       config.Port,
 		PublicUrl:  config.PublicUrl,
 		Store:      config.Store,
+		ApiUrl:     apiUrl,
 	}
 
 	return &service
@@ -59,6 +66,7 @@ type ExtensionService struct {
 	Port       int
 	Store      string
 	PublicUrl  string
+	ApiUrl     string
 }
 
 type Extension struct {
