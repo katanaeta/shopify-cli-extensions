@@ -15,6 +15,7 @@ func NewExtensionService(config *Config, apiRoot string) *ExtensionService {
 	}
 
 	apiUrl := fmt.Sprintf("%s%s", host, apiRoot)
+	websocketUrl := fmt.Sprintf("%s%s", apiUrl, "updates")
 
 	for index, extension := range extensions {
 		keys := make([]string, 0, len(extensions[index].Development.Entries))
@@ -38,9 +39,9 @@ func NewExtensionService(config *Config, apiRoot string) *ExtensionService {
 		Version:    "0.1.0",
 		Extensions: extensions,
 		Port:       config.Port,
-		PublicUrl:  config.PublicUrl,
+		WebSocket:  websocketUrl,
 		Store:      config.Store,
-		ApiUrl:     apiUrl,
+		Url:        apiUrl,
 	}
 
 	return &service
@@ -65,8 +66,8 @@ type ExtensionService struct {
 	Version    string
 	Port       int
 	Store      string
-	PublicUrl  string
-	ApiUrl     string
+	Url        string
+	WebSocket  string `json:"webSocket"`
 }
 
 type Extension struct {

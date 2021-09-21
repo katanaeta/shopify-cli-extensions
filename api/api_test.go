@@ -65,10 +65,18 @@ func TestGetExtensions(t *testing.T) {
 		t.Errorf("Expected one extension got %d", len(service.Extensions))
 	}
 
+	if service.Version != "0.1.0" {
+		t.Errorf("expect service version to be 0.1.0 but got %s", service.Version)
+	}
+
+	if service.WebSocket != "wss://localhost:8000/extensions/" {
+		t.Errorf("unexpected websocket url %s", service.WebSocket)
+	}
+
 	extension := service.Extensions[0]
 
 	if extension.Assets == nil {
-		t.Error("Expected assets to not be null")
+		t.Error("expect assets to not be null")
 	}
 
 	if extension.Assets["main"].Name != "main" {

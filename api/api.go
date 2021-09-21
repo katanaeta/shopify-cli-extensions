@@ -10,6 +10,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -124,20 +125,23 @@ func (api *ExtensionsApi) sendStatusUpdates(rw http.ResponseWriter, r *http.Requ
 	go handleClientMessages(connection)
 
 	for notification := range notifications {
-		encoder := json.NewEncoder(rw)
-		encoder.Encode(extensionsResponse{api.Extensions, api.Version})
-
 		err = api.writeJSONMessage(connection, &notification)
 		if err != nil {
 			break
 		}
 	}
+
 }
 
 func (api *ExtensionsApi) listExtensions(rw http.ResponseWriter, r *http.Request) {
+	re := regexp.MustCompile("https?")
 	rw.Header().Add("Content-Type", "application/json")
 	encoder := json.NewEncoder(rw)
-	encoder.Encode(extensionsResponse{api.Extensions, api.Version})
+	encoder.Encode(extensionsResponse{
+		api.Extensions,
+		re.ReplaceAllString(api.Url, "wss"),
+		api.Version,
+	})
 }
 
 func (api *ExtensionsApi) extensionRootHandler(rw http.ResponseWriter, r *http.Request) {
@@ -177,7 +181,7 @@ func (api *ExtensionsApi) extensionRootHandler(rw http.ResponseWriter, r *http.R
 func (api *ExtensionsApi) handleExtensionHtmlRequest(rw http.ResponseWriter, r *http.Request, extension *core.Extension) {
 	templateData := extensionTemplateData{
 		extension,
-		api.ApiUrl,
+		api.Url,
 		api.Port,
 		path.Join(api.apiRoot, extension.UUID),
 		api.Store,
@@ -185,7 +189,9 @@ func (api *ExtensionsApi) handleExtensionHtmlRequest(rw http.ResponseWriter, r *
 	}
 
 	// TODO: Find a better way to handle this - looks like there's no easy way to get the request protocol
-	if r.Host == "http://localhost" || api.PublicUrl == "" {
+	log.Printf("%v", r.Host)
+	if strings.HasPrefix(r.Host, "localhost") {
+		log.Printf("%v", strings.HasPrefix(r.Host, "localhost"))
 		rw.Write(api.handleTunnelError(&templateData))
 		return
 	}
@@ -333,6 +339,7 @@ type StatusUpdate struct {
 
 type extensionsResponse struct {
 	Extensions []core.Extension `json:"extensions"`
+	WebSocket  string           `json:"webSocket"`
 	Version    string           `json:"version"`
 }
 
